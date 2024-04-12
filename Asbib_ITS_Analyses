@@ -1,0 +1,812 @@
+#####Abib data with ALL root and nodule data included. First this will be run on fungal data######## 
+### 5/09/2023
+#### package installation and library loading ###### 
+library(qiime2R)
+library(MicrobeDS)
+library(labdsv)
+library(ALDEx2)
+uninstall("qiime2R")
+library(DESeq2)
+library(qiimer)
+library(phyloseq)
+library(vegan)
+library(microbiome)
+library(ggplot2)
+library(RColorBrewer) #pretty colour pallettes
+library(gplots)   #venn diagrams
+library(cowplot) #saving graphs
+library(pheatmap)
+library(dplyr)
+library(lme4)
+library(ggplot2)
+library(ggpubr)
+library(gplots) 
+library(vegan)
+library(ALDEx2) #diff abundance because Deseq doesnt work 
+library(vegan)
+library(dplyr)
+#install.packages("DESeq2")
+#library(DESeq2)
+#if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+  library(RColorBrewer)
+  library(ggthemes)  
+  library(patchwork)  
+
+#####data importing from qiime file to phyloseq #####
+AbibFungi2023May<-qza_to_phyloseq(features="/Users/rachelbrant/Desktop/Qiime_outputITSAbib/dada2-single-end-table_redoITS.qza",tree = "/Users/rachelbrant/Desktop/Qiime_outputITSAbib/rooted-tree_redoITS.qza", taxonomy="/Users/rachelbrant/Desktop/Qiime_outputITSAbib/taxonomy_redoITS.qza", metadata = "/Users/rachelbrant/Desktop/Qiime_outputITSAbib/fixed-meta-abib-its.txt")
+AbibFungi2023May
+AbibFungi2023May1<-prune_samples(sample_data(AbibFungi2023May)$Status=="Live",AbibFungi2023May)
+AbibFungi2023May2<-prune_samples(sample_data(AbibFungi2023May1)$Glade!="CVL",AbibFungi2023May1)
+meta<-sample_data(AbibFungi2023May2)
+AbibFungi2023May2
+write.csv(meta,"/Users/rachelbrant/Desktop/samplecountsAbib.csv")
+
+##### ##subset data ######
+#inocula, no plants no roots no nodules
+AbibInocula<-prune_samples(sample_data(AbibFungi2023May2)$Type=="Inoculum",AbibFungi2023May2)
+#Plants
+AbibPlants<-prune_samples(sample_data(phy_rareFung)$Type=="Soil",phy_rareFung)
+AbibPlants
+AbibPlantsClean<-prune_samples(sample_data(AbibPlants)$Species!="NA",AbibPlants)
+AbibPlantsCleanAB1<-prune_samples(sample_data(AbibPlantsClean)$Species=="AB",AbibPlantsClean)
+SubsettedFungi<-subset_taxa(AbibFungi2023May2, Phylum=="Glomeromycota" | Order=="Hypocreales" )
+SubsettedFungiotu<-vegan_otu(SubsettedFungi)
+write.csv(SubsettedFungiotu,"/Users/rachelbrant/Desktop/Subsettedfungiotu1.csv")
+SubsettedFungitax<-tax_table(SubsettedFungi)
+write.csv(SubsettedFungitax,"/Users/rachelbrant/Desktop/Subsettedfungitax1.csv")
+
+TableSubAbFun<-tax_table(AbibPlantsCleanAB)
+write.csv(TableSubAbFun,"/Users/rachelbrant/Desktop/TableSubAbFun.csv")
+write.csv(FunAb22,"/Users/rachelbrant/Desktop/FunAb22.csv")
+AbibPlantsCleanSS<-prune_samples(sample_data(AbibPlantsClean)$Species=="SS",AbibPlantsClean)
+AbibPlantsCleanAT<-prune_samples(sample_data(AbibPlantsClean)$Species=="AT",AbibPlantsClean)
+#roots
+AbibRoots<-prune_samples(sample_data(phy_rareFung)$Type=="Root",phy_rareFung)
+AbibRoots
+AbibRootsAB<-prune_samples(sample_data(AbibRoots1)$Species=="AB",AbibRoots1)
+
+
+AbibRootsABHA1<-prune_samples(sample_data(AbibRootsAB)$Presence=="HA",AbibRootsAB)
+metaNWH<-sample_data(AbibRootsAB)
+View(metaNWH)
+write.csv(metaNW,"/Users/rachelbrant/Desktop/samplecountsAbibFungiRNWH.csv")
+
+#nodules
+AbibNodules<-prune_samples(sample_data(phy_rareFung)$Type=="Nodule",phy_rareFung)
+AbibNodules
+AbibNodulesAB<-prune_samples(sample_data(AbibNodules)$Species=="AB",AbibNodules)
+AbibNodulesAT<-prune_samples(sample_data(AbibNodules)$Species=="AT",AbibNodules)
+###rarefaction
+sums <- sample_sums(AbibFungi2023May)
+barplot(sums[order(sums, decreasing=TRUE)], las=3, cex.names = 0.5, ylab="Library size", col = "skyblue")
+abline(h = 1000, lty=2)
+
+##############rarefaction ############
+##remove samples with too small library size using prune_samples function
+phy_objFung <- prune_samples(sample_sums(AbibFungi2023May2)>3000, AbibFungi2023May2)
+phy_objFung
+AbibFungi2023May2
+phy_rareFung
+
+phy_rareFung <- rarefy_even_depth(phy_objFung, sample.size = min(sample_sums(phy_objFung)),
+                                replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+phy_rareFung
+
+taxtableAbibFungi<-tax_table(phy_rareFung)
+write.csv(taxtableAbibFungi,"/Users/rachelbrant/Desktop/taxtableAbibFungi.csv")
+
+###### Alpha diversity #################
+###richness estimates 
+RichnessInoculate<-estimate_richness(AbibInocula,measures=c("Observed","Shannon","InvSimpson"))
+head(RichnessInoculate)
+
+RichnessPlants<-estimate_richness(AbibPlants,measures=c("Observed","Shannon","InvSimpson"))
+head(RichnessPlants)
+
+RichnessRoots<-estimate_richness(AbibRoots,measures=c("Observed","Shannon","InvSimpson"))
+head(RichnessRoots)
+
+RichnessNodules<-estimate_richness(AbibNodules,measures=c("Observed","Shannon","InvSimpson"))
+head(RichnessNodules)
+
+library(dplyr)
+soil_metaPlant<-data.frame(sample_data(AbibPlantsCleanAB1))
+write.csv(soil_metaPlant,"/Users/rachelbrant/Desktop/soilmetaplant.csv")
+soil_metaPlant$sampleid<-rownames(soil_metaPlant)
+soil_metaPlant
+soil_richnessPlants3<-estimate_richness(AbibPlantsCleanAB1,measures=c("Observed","Shannon","InvSimpson"))
+#Add Richness Onto Our Metadata
+soil_richnessPlants3$sampleid<-rownames(soil_richnessPlants3)
+soil_richnessPlant4<-left_join(soil_richnessPlants3,soil_metaPlant,"sampleid")
+write.csv(soil_richnessPlant4,"/Users/rachelbrant/Desktop/soil_richnessPlant4.csv")
+library(lme4)
+attach(soilmetaplant)
+richPlants<-aov(Shannon~Presence, data=soilmetaplant)
+summary(richPlants)
+TukeyHSD(richPlants)
+ggplot(soilmetaplant) +
+  aes(x = Presence, y = Shannon, fill =Species) +
+  geom_boxplot() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()+labs(title="Fungi Richness Plant-Soil")
+
+
+######################## roots #########
+library(dplyr)
+soil_metaRoot<-data.frame(sample_data(AbibRoots))
+write.csv(soil_metaRoot,"/Users/rachelbrant/Desktop/soilmetaroot.csv")
+soil_metaRoot$sampleid<-rownames(soil_metaRoot)
+soil_metaRoot
+soil_richnessRoot3<-estimate_richness(AbibRoots,measures=c("Observed","Shannon","InvSimpson"))
+#Add Richness Onto Our Metadata
+soil_richnessRoot3$sampleid<-rownames(soil_richnessRoot3)
+soil_richnessRoot4<-left_join(soil_richnessRoot3,soil_metaRoot,"sampleid")
+write.csv(soil_richnessRoot4,"/Users/rachelbrant/Desktop/soil_richnessRoot4.csv")
+attach(soil_richnessRoot4)
+library(lme4)
+attach(soil_richnessRoot4)
+rootsSoilAB<-subset(soil_richnessRoot4, Species == 'AB') 
+richRootsF<-aov(Shannon~ Soil*Presence, data=rootsSoilAB)
+summary(richRootsF)
+TukeyHSD(richRoots)
+ggplot(rootsSoilAB) +
+  aes(x = Presence, y = Shannon, fill = Soil) +
+  geom_boxplot() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()+labs(title="Fungi Richness of AB roots when grown in other soils")
+
+
+################### nodules ###############################
+library(dplyr)
+soil_metaNodule<-data.frame(sample_data(AbibNodules))
+write.csv(soil_metaNodule,"/Users/rachelbrant/Desktop/soilmetanod.csv")
+soil_metaNodule$sampleid<-rownames(soil_metaNodule)
+soil_metaNodule
+soil_richnessNodule3<-estimate_richness(AbibNodules,measures=c("Observed","Shannon","InvSimpson"))
+#Add Richness Onto Our Metadata
+soil_richnessNodule3$sampleid<-rownames(soil_richnessNodule3)
+soil_richnessNodule4<-left_join(soil_richnessNodule3,soil_metaNodule,"sampleid")
+write.csv(soil_richnessNodule4,"/Users/rachelbrant/Desktop/soil_richnessnod4.csv")
+soil_richnessNodule4
+library(lme4)
+attach(soil_richnessnod4)
+nodsSoilAB<-subset(soil_richnessnod4, Species == 'AB') 
+richNodsF<-aov(Shannon~ Soil*Presence, data=nodsSoilAB)
+summary(richNodsF)
+TukeyHSD(richNods)
+ggplot(nodsSoilAB) +
+  aes(x = Presence, y = Shannon, fill = Soil) +
+  geom_boxplot() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()+labs(title="Fungi Richness of AB Nodules when grown in other Soil")
+
+
+####Alpha diversity Continues ######################################
+# Diversity indices for Fungi of each group starting with inoculate 
+shannon_div <- diversity(otu_table(AbibInocula), index = "shannon")
+faiths_div <- pd(as.data.frame(t(otu_table(AbibInocula))), phy_tree(AbibInocula), include.root = FALSE)
+shannonnew<-unlist(shannon_div)
+faiths_div
+shannonnew
+shannon_div
+# Variables 
+Presence <- sample_data(AbibInocula)$Presence
+Presence
+Glade<-sample_data(AbibInocula)$Glade
+Status<-sample_data(AbibInocula)$Status
+
+# Plot the total shannon richness against the glade
+boxplot(shannonnew~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Bacterial Richness")
+#Plot the total shannon against presence
+boxplot(shannonnew~Presence, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Bacterial Richness")
+#plot total Shannon richness against species
+boxplot(shannonnew~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade",main="Bacterial Richness")
+
+# Diversity indices for Fungi of each group now we do soil/plant samples 
+AbibPlantsClean<-prune_samples(sample_data(AbibPlants)$Species!="NA",AbibPlants)
+shannon_divP <- diversity(otu_table(AbibPlantsClean), index = "shannon")
+faiths_divP <- pd(as.data.frame(t(otu_table(AbibPlantsClean))), phy_tree(AbibPlantsClean), include.root = FALSE)
+shannonnewP<-unlist(shannon_divP)
+faiths_divP
+shannonnewP
+shannon_divP
+# Variables 
+Presence <- sample_data(AbibPlantsClean)$Presence
+Presence
+Glade<-sample_data(AbibPlantsClean)$Glade
+Species<-sample_data(AbibPlantsClean)$Species
+
+
+# Plot the total shannon richness against the glade
+boxplot(shannonnewP~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Fungal Richness")
+#Plot the total shannon against presence
+boxplot(shannonnewP~Presence, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Fungal Richness")
+#plot total Shannon richness against species
+boxplot(shannonnewP~Species, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade",main="Fungal Richness")
+
+
+# Diversity indices for Fungi of each group now we do root samples  
+shannon_divR <- diversity(otu_table(AbibRoots), index = "shannon")
+faiths_divR <- pd(as.data.frame(t(otu_table(AbibRoots))), phy_tree(AbibRoots), include.root = FALSE)
+shannonnewR<-unlist(shannon_divR)
+faiths_divR
+shannonnewR
+shannon_divR
+# Variables 
+Presence <- sample_data(AbibRoots)$Presence
+Presence
+Glade<-sample_data(AbibRoots)$Glade
+Species<-sample_data(AbibRoots)$Species
+Status<-sample_data(AbibRoots)$Status
+
+# Plot the total shannon richness against the glade
+boxplot(shannonnewR~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Fungal Richness")
+#Plot the total shannon against presence
+boxplot(shannonnewR~Presence, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Fungal Richness")
+#plot total Shannon richness against species
+boxplot(shannonnewR~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade",main="Fungal Richness")
+
+# Diversity indices for Fungi of each group now we do nodule samples 
+shannon_divN <- diversity(otu_table(AbibNodules), index = "shannon")
+faiths_divN <- pd(as.data.frame(t(otu_table(AbibNodules))), phy_tree(AbibNodules), include.root = FALSE)
+shannonnewN<-unlist(shannon_divN)
+faiths_divN
+shannonnewN
+shannon_divN
+# Variables 
+Presence <- sample_data(AbibNodules)$Presence
+Presence
+Glade<-sample_data(AbibNodules)$Glade
+Species<-sample_data(AbibNodules)$Species
+
+
+# Plot the total shannon richness against the glade
+boxplot(shannonnewN~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Fungal Richness")
+#Plot the total shannon against presence
+boxplot(shannonnewN~Presence, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Fungal Richness")
+#plot total Shannon richness against species
+boxplot(shannonnewN~Species, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade",main="Fungal Richness")
+
+
+################################### Beta Diversity Analyses#######################################
+###################################################################################################
+####################################################################################################
+####### Beta diversity for all fungi, split by sample type, and then we focus on the soils first and then do that by species and by presence
+otu_table(SubsettedABpotsFun) <- otu_table(SubsettedABpotsFun) + 1
+ord.nmds.brayFungiAbib <- ordinate(AbibPlantsClean, method="NMDS",k=3, distance="bray",trymax=500)
+#best solution repeated 4 times 
+
+#######ordinate and create NMDS plot by species first###################################
+ordinationFungiAbib1 <- ordinate(AbibPlantsClean, "PCoA", "bray")
+beta_div_bray_cleanFungiAbib1<- plot_ordination(AbibPlantsClean, ord.nmds.brayFungiAbib, type= "samples", color="Presence") + geom_point(size=3)
+bray_clean_presenceFungiAbib1 <- beta_div_bray_cleanFungiAbib1 + stat_ellipse() + theme_classic() + scale_color_brewer(palette = "Set2")
+brayAbibFungi1<-bray_clean_presenceFungiAbib1+scale_color_manual(values =c("#6699CC","darkorange"))+ theme(axis.text=element_text(size=12),axis.title = element_text(size=8))
+brayAbibFungi21<-brayAbibFungi1
+brayAbibFungi31<-brayAbibFungi21+theme(legend.title = element_blank(),legend.text = element_text(size =12))
+bray313<-brayAbibFungi31+theme(legend.title = element_blank(),legend.text = element_text(size =12))
+beta_div_bray_cleanFungiAbib1<-bray313+stat_ellipse(aes(color=Presence,linetype=Presence))+theme(legend.title = element_blank(),legend.text = element_text(size =12))+theme_bw()
+bray_clean_presenceFungiAbib1<-beta_div_bray_cleanFungiAbib1+theme(legend.title = element_blank(),legend.text = element_text(size =12))
+F22V<-bray_clean_presenceFungiAbib1+theme(legend.title = element_blank(),legend.text = element_text(size =12))+theme(axis.text.y = element_text(size=14))+theme(axis.text.x = element_text(size=14))
+F23V<-F22V+theme_classic()
+F23V+theme(legend.title = element_blank(),legend.text = element_text(size =12))+theme(axis.text.y = element_text(size=12))+theme(axis.text.x = element_text(size=12))
+#######Ordinate and create NMDS plot by Presence #################################
+ordinationFungiAbibPresence <- ordinate(AbibPlantsClean, "PCoA", "bray")
+beta_div_bray_cleanFungiAbib_New<- plot_ordination(AbibPlantsClean, ord.nmds.brayFungiAbib, type= "samples", color= "Presence") + geom_point(size=3)
+bray_clean_presenceFungiAbib_New <- beta_div_bray_cleanFungiAbib_New+ stat_ellipse() + theme_classic() + scale_color_brewer("Presence", palette = "Set2")
+brayAbibNew<-bray_clean_presenceFungiAbib_New+scale_color_manual(values =c("#6699CC","#009E73","#999999"))+ theme(axis.text=element_text(size=8),axis.title = element_text(size=8))
+brayAbibNew
+brayAbibFungi_15<-brayAbibNew+theme(legend.title = element_blank(),legend.text = element_text(size =7))
+brayAbibFungi_15
+bray_clean_presenceFungiAbib_New
+##permanova on beta 
+library(vegan)
+vegan_otu <- function(physeq) {
+  OTU <- otu_table(physeq)
+  if (taxa_are_rows(OTU)) {
+    OTU <- t(OTU)
+  }
+  return(as(OTU, "matrix"))
+}
+soil.Abib17<-vegan_otu(AbibPlantsClean)
+#Convert Sample Data to dataframe 
+soil.AbibFUNGI<-as(sample_data(AbibPlantsClean),"data.frame")
+soil.nmdsAllFungiSoil<-metaMDS(soil.Abib17,distance="bray",k=3,trymax = 600,halfchange = TRUE)   
+soil.adonisAllFungiSoil<-adonis2(soil.Abib17~Presence,data=soil.AbibFUNGI, permutations=999,method="bray")
+soil.adonisAllFungiSoil
+###permanova is significant 
+soil.nmdsAllFungiSoil
+##permdisp
+class(soil.AbibFungi)
+map<-as.table(soil.AbibFungi)
+dim(map)
+View(map)
+otu=read.table(,header=TRUE)
+OTU2<-otu_table(AbibPlantsClean)
+head(OTU2)
+rdp2=OTU2[,ncol(OTU2)]
+names(rdp2)=row.names(OTU2)
+otu=OTU2[,-ncol(OTU2)]
+dim(otu)
+dim(OTU2)
+
+braycurtis.d2=vegdist(t(OTU2), method="bray")
+braycurtis.d2
+sorenson.d=vegdist(t(otu), method="bray", binary=TRUE)
+head(sorenson.d) 
+braycurtis.mds <- metaMDS(braycurtis.d2)
+plot(braycurtis.mds, type="t")
+b2=betadisper(braycurtis.d2, group=map[,"Species"], type="median")
+b2
+b.perm2=permutest(b2, group=map[,"Species"], type="median", permutations=999, pairwise=TRUE)
+b.perm2
+###permutation test was significant for AB=SS only, so can continue using permanova for Species
+
+
+############### beta diversity for roots now !!!#################################
+ord.nmds.brayFungiAbibRootsAB <- ordinate(AbibRootsAB, method="NMDS",k=3, distance="bray",trymax=500)
+#best was repeated 1x 
+#best solution repeated 4 times 
+#######Ordinate and create NMDS plot by Presence #################################
+ordinationFungiAbibRootsPresence <- ordinate(AbibRootsAB, "PCoA", "bray")
+beta_div_bray_cleanFungiAbib_RootsNew<- plot_ordination(AbibRootsAB, ord.nmds.brayFungiAbibRootsAB, type= "samples", color= "Soil") + geom_point(size=3)
+bray_clean_presenceFungiAbib_RootsNew <- beta_div_bray_cleanFungiAbib_RootsNew + theme_classic() + scale_color_brewer( palette = "Set2")
+brayAbibNewRoots<-bray_clean_presenceFungiAbib_RootsNew+scale_color_manual(values =c("#6699CC","#009E73","#999999"))+ theme(axis.text=element_text(size=8),axis.title = element_text(size=8))
+brayAbibNewRoots
+beta_div_bray_cleanFungiAbib_RootsNew
+brayAbibFungi_15Roots<-brayAbibNewRoots+theme(legend.title = element_blank(),legend.text = element_text(size =7))
+brayAbibFungi_15Roots+theme_bw()+stat_ellipse()+labs(title="Beta Diversity Roots of AB across soils")
+BD<-beta_div_bray_cleanFungiAbib_RootsNew+stat_ellipse(aes(color=Soil,linetype=Presence))
+BD+theme_bw()
+bray_clean_presenceFungiAbib_RootsNew+labs(title="Beta Diversity Root-Soil")
+##### ellipses dont even cross each other for AbibRoots x species 
+
+##permanova on beta 
+library(vegan)
+vegan_otu <- function(physeq) {
+  OTU <- otu_table(physeq)
+  if (taxa_are_rows(OTU)) {
+    OTU <- t(OTU)
+  }
+  return(as(OTU, "matrix"))
+}
+soil.AbibR<-vegan_otu(AbibRootsAB)
+
+#Convert Sample Data to dataframe     
+soil.AbibFungiR<-as(sample_data(AbibRootsAB),"data.frame")
+soil.nmdsAllFungiRoot<-metaMDS(soil.AbibR,distance="bray",k=4,trymax = 600,halfchange = TRUE)   
+soil.adonisAllFungiSoil<-adonis2(soil.AbibR~Presence*Soil,data=soil.AbibFungiR, permutations=999,method="bray")
+soil.adonisAllFungiSoil
+###permanova is significant for both speceis and presence 
+soil.nmdsAllFungiSoil
+
+##permdisp
+soil.AbibRoots<-as(sample_data(AbibRoots),"matrix")
+class(soil.AbibFungi)
+map<-as.table(soil.AbibRoots)
+dim(map)
+View(map)
+otu=read.table(,header=TRUE)
+OTU2<-otu_table(AbibRoots)
+head(OTU2)
+rdp2=OTU2[,ncol(OTU2)]
+names(rdp2)=row.names(OTU2)
+otu=OTU2[,-ncol(OTU2)]
+dim(otu)
+dim(OTU2)
+
+braycurtis.d2=vegdist(t(OTU2), method="bray")
+braycurtis.d2
+sorenson.d=vegdist(t(otu), method="bray", binary=TRUE)
+head(sorenson.d) 
+braycurtis.mds <- metaMDS(braycurtis.d2)
+plot(braycurtis.mds, type="t")
+b2=betadisper(braycurtis.d2, group=map[,"Species"], type="median")
+b2
+b.perm2=permutest(b2, group=map[,"Species"], type="median", permutations=999, pairwise=TRUE)
+b.perm2
+
+
+
+############### beta diversity for nodules now !!!#################################
+ord.nmds.brayFungiAbibNodules<- ordinate(AbibNodulesAB, method="NMDS",k=3, distance="bray",trymax=500)
+#best was repeated 1x 
+
+#######Ordinate and create NMDS plot by Presence #################################
+ordinationFungiAbibNodulesPresence <- ordinate(AbibNodulesAB, "PCoA", "bray")
+beta_div_bray_cleanFungiAbib_NodulesNew<- plot_ordination(AbibNodulesAB, ord.nmds.brayFungiAbibNodules, type= "samples", color= "Soil") + geom_point(size=3)
+bray_clean_presenceFungiAbib_NodulesNew <- beta_div_bray_cleanFungiAbib_NodulesNew+ stat_ellipse() + theme_classic() + scale_color_brewer("Soil", palette = "Set2")
+brayAbibNewNodules<-bray_clean_presenceFungiAbib_NodulesNew+scale_color_manual(values =c("#6699CC","#009E73","#999999"))+ theme(axis.text=element_text(size=8),axis.title = element_text(size=8))
+brayAbibNewNodules
+brayAbibFungi_15Nodules<-brayAbibNewNodules+theme(legend.title = element_blank(),legend.text = element_text(size =7))
+BDL<-beta_div_bray_cleanFungiAbib_NodulesNew+stat_ellipse(aes(color=Soil,linetype=Presence))
+BDL+theme_bw()
+bray_clean_presenceFungiAbib_NodulesNew+labs(title="Beta Diversity Nodule-Soil")
+##### ellipses dont even cross each other for Abib Nodules  x species 
+## ellipses do overlap some for presence x nodules, HP inside HA
+
+##permanova on beta 
+library(vegan)
+vegan_otu <- function(physeq) {
+  OTU <- otu_table(physeq)
+  if (taxa_are_rows(OTU)) {
+    OTU <- t(OTU)
+  }
+  return(as(OTU, "matrix"))
+}
+soil.AbibN<-vegan_otu(AbibNodulesAB)
+
+#Convert Sample Data to dataframe     
+soil.AbibFungiN<-as(sample_data(AbibNodulesAB),"data.frame")
+soil.nmdsAllFungiNod<-metaMDS(soil.AbibN,distance="bray",k=4,trymax = 600,halfchange = TRUE)   
+soil.adonisAllFungiSoilN<-adonis2(soil.AbibN~Presence*Soil,data=soil.AbibFungiN, permutations=999,method="bray")
+soil.adonisAllFungiSoilN
+###permanova is significant for both speceis and presence for nodules 
+soil.nmdsAllFungiSoil
+
+
+##permdisp
+soil.AbibNodules<-as(sample_data(AbibNodules),"matrix")
+class(soil.AbibFungi)
+map<-as.table(soil.AbibNodules)
+dim(map)
+View(map)
+otu=read.table(,header=TRUE)
+OTU2<-otu_table(AbibNodules)
+head(OTU2)
+rdp2=OTU2[,ncol(OTU2)]
+names(rdp2)=row.names(OTU2)
+otu=OTU2[,-ncol(OTU2)]
+dim(otu)
+dim(OTU2)
+
+braycurtis.d2=vegdist(t(OTU2), method="bray")
+braycurtis.d2
+sorenson.d=vegdist(t(otu), method="bray", binary=TRUE)
+head(sorenson.d) 
+braycurtis.mds <- metaMDS(braycurtis.d2)
+plot(braycurtis.mds, type="t")
+b2=betadisper(braycurtis.d2, group=map[,"Species"], type="median")
+b2
+b.perm2=permutest(b2, group=map[,"Species"], type="median", permutations=999, pairwise=TRUE)
+b.perm2
+
+
+################################################################################################################
+############subset soil, roots and nodules by glomeraceae only #################################################
+AMF_Soils<-prune_taxa(as.logical(tax_table(AbibPlants)[,2]=="Glomeromycota"),AbibPlants)
+AMF_Soils
+sumsSoil <- sample_sums(AMF_Soils)
+barplot(sumsSoil[order(sumsSoil, decreasing=TRUE)], las=3, cex.names = 0.5, ylab="Library size", col = "skyblue")
+abline(h = 10, lty=2)
+
+AMF_Nodules<-prune_taxa(as.logical(tax_table(AbibNodules)[,2]=="Glomeromycota"),AbibNodules)
+AMF_Nodules
+sumsNod <- sample_sums(AMF_Nodules)
+barplot(sumsNod[order(sumsNod, decreasing=TRUE)], las=3, cex.names = 0.5, ylab="Library size", col = "skyblue")
+abline(h = 10, lty=2)
+
+AMF_Roots<-prune_taxa(as.logical(tax_table(AbibRoots)[,2]=="Glomeromycota"),AbibRoots)
+AMF_Roots
+sumsRoot <- sample_sums(AMF_Roots)
+barplot(sumsRoot[order(sumsRoot, decreasing=TRUE)], las=3, cex.names = 0.5, ylab="Library size", col = "skyblue")
+abline(h = 10, lty=2)
+
+####### AMF ALPHA DIVERSITY ######################################################
+####Alpha diversity
+# Diversity indices for Fungi of each group now we do nodule samples 
+shannon_divSAMF<- diversity(otu_table(AMF_Soils), index = "shannon")
+faiths_divSAMF <- pd(as.data.frame(t(otu_table(AMF_Soils))), phy_tree(AMF_Soils), include.root = FALSE)
+shannonnewSAMF<-unlist(shannon_divSAMF)
+faiths_divSAMF
+shannonnewSAMF
+shannon_divSAMF
+# Variables 
+Presence <- sample_data(AMF_Soils)$Presence
+Presence
+Glade<-sample_data(AMF_Soils)$Glade
+Species<-sample_data(AMF_Soils)$Species
+
+# Plot the total shannon richness against the glade
+boxplot(shannonnewSAMF~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="AMF Richness Plants")
+#Plot the total shannon against presence
+boxplot(shannonnewSAMF~Presence, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="AMF Richness Plants")
+#plot total Shannon richness against species
+boxplot(shannonnewSAMF~Species, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade",main="AMF Richness Plants")
+
+####Alpha diversity
+# Diversity indices for Fungi of each group now we do nodule samples 
+shannon_divRAMF<- diversity(otu_table(AMF_Roots), index = "shannon")
+faiths_divRAMF <- pd(as.data.frame(t(otu_table(AMF_Roots))), phy_tree(AMF_Roots), include.root = FALSE)
+shannonnewRAMF<-unlist(shannon_divRAMF)
+faiths_divRAMF
+shannonnewRAMF
+shannon_divRAMF
+# Variables 
+Presence <- sample_data(AMF_Roots)$Presence
+Presence
+Glade<-sample_data(AMF_Roots)$Glade
+Species<-sample_data(AMF_Roots)$Species
+
+
+# Plot the total shannon richness against the glade
+boxplot(shannonnewRAMF~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Root AMF Richness")
+#Plot the total shannon against presence
+boxplot(shannonnewRAMF~Presence, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Root AMF Richness")
+#plot total Shannon richness against species
+boxplot(shannonnewRAMF~Species, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade",main="Root AMF Richness")
+
+
+####Alpha diversity
+# Diversity indices for Fungi of each group now we do nodule samples 
+shannon_divNAMF<- diversity(otu_table(AMF_Nodules), index = "shannon")
+faiths_divNAMF <- pd(as.data.frame(t(otu_table(AMF_Nodules))), phy_tree(AMF_Nodules), include.root = FALSE)
+shannonnewNAMF<-unlist(shannon_divNAMF)
+faiths_divNAMF
+shannonnewNAMF
+shannon_divNAMF
+# Variables 
+Presence <- sample_data(AMF_Nodules)$Presence
+Presence
+Glade<-sample_data(AMF_Nodules)$Glade
+Species<-sample_data(AMF_Nodules)$Species
+
+
+# Plot the total shannon richness against the glade
+boxplot(shannonnewNAMF~Glade, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Nodule AMF Richness")
+#Plot the total shannon against presence
+boxplot(shannonnewNAMF~Presence, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade", main="Nodule AMF Richness")
+#plot total Shannon richness against species
+boxplot(shannonnewNAMF~Species, pch=21, cex=2, bg="skyblue", ylab="Shannon (Richness)",
+        xlab="Glade",main="Nodule AMF Richness")
+
+
+###### BETA DIVERSITY AMF ###############################################################
+#######Ordinate and create NMDS plot by Presence #################################
+ordinationAMFSoil <- ordinate(AMF_Soils, "PCoA", "bray")
+beta_div_bray_cleanFungiAbib_New<- plot_ordination(AbibPlantsClean, ord.nmds.brayFungiAbib, type= "samples", color= "Presence") + geom_point(size=3)
+bray_clean_presenceFungiAbib_New <- beta_div_bray_cleanFungiAbib_New+ stat_ellipse() + theme_classic() + scale_color_brewer("Presence", palette = "Set2")
+brayAbibNew<-bray_clean_presenceFungiAbib_New+scale_color_manual(values =c("#6699CC","#009E73","#999999"))+ theme(axis.text=element_text(size=8),axis.title = element_text(size=8))
+brayAbibNew
+brayAbibFungi_15<-brayAbibNew+theme(legend.title = element_blank(),legend.text = element_text(size =7))
+brayAbibFungi_15
+bray_clean_presenceFungiAbib_New
+##permanova on beta 
+library(vegan)
+vegan_otu <- function(physeq) {
+  OTU <- otu_table(physeq)
+  if (taxa_are_rows(OTU)) {
+    OTU <- t(OTU)
+  }
+  return(as(OTU, "matrix"))
+}
+soil.Abib<-vegan_otu(AbibPlantsClean)
+
+#Convert Sample Data to dataframe     
+soil.AbibFungi<-as(sample_data(AbibPlantsClean),"data.frame")
+soil.nmdsAllFungiSoil<-metaMDS(soil.Abib,distance="bray",k=4,trymax = 600,halfchange = TRUE)   
+soil.adonisAllFungiSoil<-adonis2(soil.Abib~Presence+Species,data=soil.AbibFungi, permutations=999,method="bray")
+soil.adonisAllFungiSoil
+###permanova is significant 
+soil.nmdsAllFungiSoil
+
+##### indicator species analyses ###########################################
+############################################################################
+indicatorFungiPots<-vegan_otu(AbibPlantsCleanAB1)
+write.csv(indicatorFungiPots,"/Users/rachelbrant/Desktop/indicatorfungipots.csv")
+#indicatorFungiR<-vegan_otu(AbibRootsABHA1)
+write.csv(indicatorFungiR,"/Users/rachelbrant/Desktop/indicatorfungir21.csv")
+metaNewpots<-sample_data(AbibPlantsCleanAB1)
+write.csv(metaNewpots,"/Users/rachelbrant/Desktop/samplecountsAbibFungipots.csv")
+indicatorFungiN<-vegan_otu(AbibNodules)
+write.csv(indicatorFungiN,"/Users/rachelbrant/Desktop/indicatorfungin.csv")
+
+###soil indicator species analyses to get core taxa 
+attach(indicatorfungipots)
+class(indicatorfungipNW)
+#as.matrix(indicatorfungip)
+library(indicspecies)
+
+invO = multipatt(abundO,timeO,control = how(nperm=999))
+abundO = indicatorfungipots[,3:ncol(indicatorfungipots)]
+timeO = indicatorfungipots$Presence
+adund1<-as.matrix(abundO)
+time1<-as.matrix(timeO)
+summary(invO,alpha=0.05)
+
+###root indicator species analyses to get core taxa 
+attach(indicatorfungir2)
+class(indicatorFungir)
+as.matrix(indicatorfungir)
+library(indicspecies)
+invO = multipatt(abundO,timeO,control = how(nperm=999))
+abundO = indicatorfungir2[,3:ncol(indicatorfungir2)]
+timeO = indicatorfungir2$Presence
+adund1<-as.matrix(abundO)
+time1<-as.matrix(timeO)
+summary(invO,alpha=0.05)
+
+###root indicator species analyses to get core taxa 
+attach(indicatorfungip)
+class(indicatorFungip)
+#as.matrix(indicatorfungin)
+library(indicspecies)
+invO = multipatt(abundO,timeO,control = how(nperm=999))
+abundO = indicatorfungip[,3:ncol(indicatorfungip)]
+timeO = indicatorfungip$Presence
+adund1<-as.matrix(abundO)
+time1<-as.matrix(timeO)
+summary(invO,alpha=0.05)
+
+########################Simper analyses #####################################
+#############################################################################
+# we will do simper analysis for plants by Presence first##
+AbibPlantsCleanAB1<-prune_taxa(as.logical(tax_table(AbibPlantsCleanAB)[,1]=="Fungi"),AbibPlantsCleanAB)
+Soilfunplants<-vegan_otu(AbibPlantsCleanAB1)
+metafunplants<-sample_data(AbibPlantsCleanAB1)
+vibesfunplants<-simper(Soilfunplants,metafunplants$Presence,permutations=100)
+summary(vibesfunplants)
+summary(vibesfunplants,ordered=TRUE)$HP_HA
+do<-tax_table(AbibPlantsCleanAB1)
+write.csv(do,"/Users/rachelbrant/Desktop/FungaltaxAB.csv")
+##we will do simper analysis for roots by presence now####
+#AbibRoots1<-prune_taxa(as.logical(tax_table(AbibRoots)[,1]=="Fungi"),AbibRoots)
+#Soilfunroots<-vegan_otu(AbibRoots1)
+#metafunroots<-sample_data(AbibRoots1)
+#vibesfunroots<-simper(Soilfunroots,metafunroots$Presence,permutations=100)
+summary(vibesfunroots)
+summary(vibesfunroots,ordered=TRUE)$HP_HA
+
+## we will do simper analysis for roots in HP by soils now ####
+AbibRootsABHP1<-prune_samples(sample_data(AbibRootsAB)$Presence=="HP",AbibRootsAB)
+AbibRootsABHA1<-prune_samples(sample_data(AbibRootsAB)$Presence=="HA",AbibRootsAB)
+SoilfunrootsHA<-vegan_otu(AbibRootsABHA1)
+metafunrootsHA<-sample_data(AbibRootsABHA1)
+vibesfunrootsHA<-simper(SoilfunrootsHA,metafunrootsHA$Soil,permutations=100)
+summary(vibesfunrootsHP)
+summary(vibesfunrootsHA,ordered=TRUE)$AB_SS
+## we will do simper analysis for roots by HA by soils now ####
+## we will do simper analysis for nodules now ####
+AbibNodules1<-prune_taxa(as.logical(tax_table(AbibNodules)[,1]=="Fungi"),AbibNodules)
+AbibNodulesABHP1<-prune_samples(sample_data(AbibNodules1)$Presence=="HP",AbibNodules1)
+AbibNodulesABHA1<-prune_samples(sample_data(AbibNodules1)$Presence=="HA",AbibNodules1)
+SoilfunnodsHA<-vegan_otu(AbibNodulesABHA1)
+metafunnodsHA<-sample_data(AbibNodulesABHA1)
+vibesfunnodsHA<-simper(SoilfunnodsHA,metafunnodsHA$Soil,permutations=100)
+summary(vibesfunnodsHP)
+summary(vibesfunnodsHA,ordered=TRUE)$AB_SS
+
+
+############# Differential Abundance heat maps ##############
+ ###########################################################
+library(DESeq2)
+ps.taxa1 <- tax_glom(AbibRootsABHP1, taxrank = 'Phylum', NArm = FALSE)
+gp_soilocean338<-subset_samples(ps.taxa1,Soil %in% c("AB","SS"))
+gp_soilocean338<-tax_glom(gp_soilocean338,taxrank = "Phylum",NArm=TRUE)
+otu_table(gp_soilocean338) <- otu_table(gp_soilocean338) + 1
+gp_soilocean338<-subset_taxa(gp_soilocean338, Kingdom=="Fungi")
+sample_sums(gp_soilocean338)
+gpmod6911<-phyloseq_to_deseq2(gp_soilocean338, ~ Soil)
+gp.deseq11 = DESeq(gpmod6911, test="Wald", fitType="mean")
+alpha = 0.05 
+res226 = results(gp.deseq11, alpha=alpha)
+res224 = res[order(res226$padj, na.last=NA), ]
+
+taxa_sig = rownames(res226[1:8, ]) # select bottom 20 with lowest p.adj values
+ps.taxa.rel <- transform_sample_counts(gp_soilocean338, function(x) x/sum(x)*100)
+ps.taxa.rel.sig1<- prune_taxa(taxa_sig, ps.taxa.rel)
+ps.taxa.rel.sig1 <- prune_samples(colnames(otu_table(ps.taxa1)), ps.taxa.rel.sig1)
+taxa_sig
+ps.taxa.rel.sig1
+res226
+#write.csv(res,"/Users/rachelbrant/Desktop/controlbacdeseq3.csv")
+ps.taxa.rel.sig1
+library(devtools)
+#install_github("jokergoo/ComplexHeatmap")
+library(ComplexHeatmap)
+
+
+##make heatmap
+matrix22 <- as.matrix(data.frame(otu_table(ps.taxa.rel.sig1)))
+rownames(matrix22) <- as.character(tax_table(ps.taxa.rel.sig1)[,"Phylum"])
+metadata_sub <- data.frame(sample_data(ps.taxa.rel.sig1))
+matrix22
+##define
+metadata_sub
+metadata_sub <- data.frame(sample_data(ps.taxa.rel.sig1))
+annotation_col23 = data.frame(
+  'Soil' = as.factor(metadata_sub$Soil), 
+  check.names = TRUE
+)
+annotation_col23
+rownames(annotation_col23) = rownames(metadata_sub)
+rownames(annotation_col23)
+annotation_row = data.frame(
+  Phylum = as.factor(tax_table(ps.taxa.rel.sig1)[, "Phylum"])
+)
+rownames(annotation_row) = rownames(matrix22)
+phylum_col2 = RColorBrewer::brewer.pal(length(levels(annotation_row$Phylum)), "Set2")
+names(phylum_col2) = levels(annotation_row$Phylum)
+ann_colors22 = list(
+  "Soil" = c("AB" = "darkred", "SS" = "darkblue"),
+  Phylum = phylum_col2
+)
+ann_colors22
+###THIS IS THE BEST ONE RIGHT HERE
+ComplexHeatmap::pheatmap(matrix22 ,scale="row",col=col_fun2,
+                         annotation_col = annotation_col23, 
+                         annotation_row = annotation_row, 
+                         annotation_colors = ann_colors22,
+                         cluster_row = FALSE,cluster_cols = FALSE)
+
+
+###### More data visualization plots unsure if will be used for publication!#######
+### simper plots 
+attach(SimperFunNodHP)
+ggplotY<-ggplot(SimperFunNodHP, aes(x=reorder(Taxa, +Contribution), y = Contribution, fill = Soil)) +
+  geom_col(position = "stack") +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+ggplotY
+ggplot21Y<-ggplotY+coord_flip()
+ggplot21Y
+ggplot212Y<-ggplot21Y+theme(axis.text.x = element_text(angle = 45,hjust=0.8,size=8))
+plotSiMPERY<-ggplot212Y+scale_fill_manual(values=cbp1,breaks=c("AB","SS","AT"))+guides(fill=guide_legend(title="Soil"))+ylab("Contribution Proportion")+xlab("Taxa")
+plotSiMPERY
+plotSimper2Y<-plotSiMPERY+theme(legend.title = element_text(size = 10),legend.text = element_text(size = 10))
+plotSimper2Y
+plotSimper4Y<-plotSimper2Y+theme(axis.text.x=element_text(size=10),axis.text.y=element_text(size=10),
+                                 axis.title=element_text(size=12))
+plotSimper4Y+labs(title="Contribution of Fungal Taxa in AB Nodules of HP samples")+ylim(0,1)
+
+
+pseq <- transform(incopots, "compositional")
+pseq2 <- aggregate_rare(pseq, level = "Family", detection = 1/100, prevalence = 30/100)
+
+p11 <- plot_composition(pseq2,
+                        average_by = "Presence", 
+                        transform = "compositional") +
+  scale_fill_brewer("Order", palette = "Paired") +
+  theme(axis.text.x = element_text(angle=90, hjust=1),
+        legend.text = element_text(face = "italic"))
+print(p11)  
+
+
+###updated Simper plot
+attach(NewsimperAbibll)
+scale_x_discrete(limits=c("Proteobacteria","Acidobacteria","Bacteriodes","Firmicutes","Glomeromycota","Ascomycota:Fusarium","Ascomycota:Other","Basidiomycota"))
+ggplotYA<-ggplot(NewsimperAbibll, aes(x=factor(Group, level=c("Proteobacteria","Acidobacteria","Bacteriodes","Firmicutes","Glomeromycota","Ascomycota:Fusarium","Ascomycota:Other","Basidiomycota")), y = Contribution, fill = Presence)) +
+  geom_col(position = "stack") +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+ggplotYA
+ggplot21YA<-ggplotYA+coord_flip()
+ggplot21YA
+ggplot212YA<-ggplot21YA+theme(axis.text.x = element_text(angle = 45,hjust=0.8,size=8))
+plotSiMPERYA<-ggplot212YA+scale_fill_manual(values=cbp1,breaks=c("HP","HA"))+guides(fill=guide_legend(title="Presence"))+ylab("Contribution Proportion")+xlab("Taxa")
+plotSiMPERYA
+plotSimper2YA<-plotSiMPERYA+theme(legend.title = element_text(size = 10),legend.text = element_text(size = 10))
+plotSimper2YA
+plotSimper4YA<-plotSimper2YA+theme(axis.text.x=element_text(size=10),axis.text.y=element_text(size=10),
+                                 axis.title=element_text(size=12))
+plotSimper4YA+ylim(0,1)
